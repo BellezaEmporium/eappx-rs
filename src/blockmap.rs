@@ -139,7 +139,8 @@ mod tests {
         };
 
         let ser = xml_serialize(map);
-        assert_eq!(XML_ENCODING.to_owned() + "\n" + &ser, XML_DATA);
+        let expected = (XML_ENCODING.to_owned() + "\n" + &ser).replace("\r\n", "\n");
+        assert_eq!(expected, XML_DATA.replace("\r\n", "\n"));
     }
 
     #[test]

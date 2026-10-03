@@ -1,8 +1,8 @@
 use std::{any::Any, io::Read};
 
-use aes::{Aes128, cipher::KeyInit, cipher::generic_array::GenericArray};
+use aes::{Aes128, cipher::KeyInit, cipher::consts::{U16, U32}};
 use sha2::{Sha256, Digest};
-use xts_mode::Xts128;
+use xts_mode::{Array, Xts128};
 
 use crate::utils::{self};
 
@@ -30,7 +30,7 @@ impl<T: Read> Read for AesXtsReader<T>
         let mut tmp = vec![0u8; aligned_size];
 
         self.inner.read_exact(&mut tmp)?;
-        self.ctx.cipher.0.decrypt_area(&mut tmp, utils::SECTOR_SIZE, self.sector, |sector| self.ctx.for_sector(sector));
+        self.ctx.cipher.0.decrypt_area(&mut tmp, utils::SECTOR_SIZE, self.sector, |sector| self.ctx.for_sector(sector).into());
 
         buf.copy_from_slice(&tmp[..buf.len()]);
         self.sector += (aligned_size / utils::SECTOR_SIZE) as u128;
@@ -66,9 +66,12 @@ pub fn get_tweak_for_file(app_name: &str, publisher_id: &str, filename: &str) ->
 }
 
 pub fn create_cipher(key: &[u8; 32]) -> AesXtsCipher {
+    let key_array: Array<u8, U32> = Array(*key);
+    let (key_1, key_2) = key_array.split::<U16>();
+
     AesXtsCipher(Xts128::<Aes128>::new(
-        Aes128::new(GenericArray::from_slice(&key[..16])),
-        Aes128::new(GenericArray::from_slice(&key[16..]))
+        Aes128::new(&key_1),
+        Aes128::new(&key_2),
     ))
 }
 
@@ -129,9 +132,11 @@ mod tests {
     use super::*;
 
     fn xts128_cipher() -> AesXtsCipher {
+        let zero_key = Array([0u8; 16]);
+
         AesXtsCipher(Xts128::new(
-            Aes128::new(GenericArray::from_slice(&[0u8; 16])),
-            Aes128::new(GenericArray::from_slice(&[0u8; 16]))
+            Aes128::new(&zero_key),
+            Aes128::new(&zero_key),
         ))
     }
 
